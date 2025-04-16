@@ -5,18 +5,20 @@
 #include <vector>
 #include <sstream>
 
-struct Packet {
+// used to send packets over tcp as text
+struct Packet
+{
     std::string src_ip;
     std::string dst_ip;
-    int port;
+    int port = 0;
     std::string payload;
 
-    std::string serialize() const //Converts packet to a single string
+    std::string serialize() const
     {
         return src_ip + "|" + dst_ip + "|" + std::to_string(port) + "|" + payload;
     }
 
-    static Packet deserialize(const std::string& data) // Converts string back to Packet
+    static Packet deserialize(const std::string &data)
     {
         std::stringstream ss(data);
         Packet packet;
@@ -31,4 +33,3 @@ struct Packet {
 };
 
 #endif // SHARED_H
-

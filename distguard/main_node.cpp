@@ -1,4 +1,3 @@
-// main_node/main_node.cpp
 #include <iostream>
 #include <boost/asio.hpp>
 #include <thread>
@@ -12,9 +11,10 @@ using namespace std;
 
 mutex cout_mutex;
 
-void handle_client(tcp::socket socket, const std::vector<Packet>& traffic_chunk, int client_id)//Each handle_client runs in a separate thread
+void handle_client(tcp::socket socket, const std::vector<Packet> &traffic_chunk, int client_id)
 {
-    try {
+    try
+    {
         boost::asio::streambuf buf;
         ostream os(&buf);
 
@@ -23,7 +23,8 @@ void handle_client(tcp::socket socket, const std::vector<Packet>& traffic_chunk,
             cout << "[MainNode] Sending " << traffic_chunk.size() << " packets to Client " << client_id << "..." << endl;
         }
 
-        for (const auto& pkt : traffic_chunk) {
+        for (const auto &pkt : traffic_chunk)
+        {
             std::string data = pkt.serialize() + "\n";
             os << data;
         }
@@ -45,27 +46,30 @@ void handle_client(tcp::socket socket, const std::vector<Packet>& traffic_chunk,
             lock_guard<mutex> lock(cout_mutex);
             cout << "[Client " << client_id << " Response] " << response << endl;
         }
-
     }
-    catch (exception& e) {
+    catch (exception &e)
+    {
         lock_guard<mutex> lock(cout_mutex);
         cerr << "[MainNode] Client handler exception: " << e.what() << endl;
     }
 }
 
-int main() {
+int main2()
+{
     const int port = 5555;
     const int num_clients = 3;
     const int packets_per_client = 10;
 
-    try {
+    try
+    {
         boost::asio::io_context io_context;
         tcp::acceptor acceptor(io_context, tcp::endpoint(tcp::v4(), port));
 
         cout << "[MainNode] Waiting for clients on port " << port << "..." << endl;
 
         vector<tcp::socket> client_sockets;
-        for (int i = 0; i < num_clients; ++i) {
+        for (int i = 0; i < num_clients; ++i)
+        {
             tcp::socket socket(io_context);
             acceptor.accept(socket);
             cout << "[MainNode] Client " << (i + 1) << " connected." << endl;
@@ -77,20 +81,22 @@ int main() {
 
         // Distribute to clients
         vector<thread> client_threads;
-        for (int i = 0; i < num_clients; ++i) {
+        for (int i = 0; i < num_clients; ++i)
+        {
             vector<Packet> chunk(traffic.begin() + i * packets_per_client,
-                traffic.begin() + (i + 1) * packets_per_client);
+                                 traffic.begin() + (i + 1) * packets_per_client);
             client_threads.emplace_back(handle_client, std::move(client_sockets[i]), chunk, i + 1);
         }
 
-        for (auto& t : client_threads) {
+        for (auto &t : client_threads)
+        {
             t.join();
         }
 
         cout << "[MainNode] All client responses received." << endl;
-
     }
-    catch (exception& e) {
+    catch (exception &e)
+    {
         cerr << "[MainNode] Exception: " << e.what() << endl;
     }
 

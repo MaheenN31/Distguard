@@ -1,4 +1,3 @@
-// child_node/child_node.cpp
 #include <iostream>
 #include <boost/asio.hpp>
 #include <string>
@@ -9,7 +8,7 @@
 
 using boost::asio::ip::tcp;
 
-int main() {
+int main1() {
     const std::string server_ip = "127.0.0.1";
     const int server_port = 5555;
 

@@ -2,8 +2,7 @@
 #include <random>
 #include <ctime>
 
-std::vector<Packet> TrafficSimulator::generateTraffic(int count) //simulates real network traffic some of which is intentionally malicious.
-{
+std::vector<Packet> TrafficSimulator::generateTraffic(int count) {
     std::vector<Packet> packets;
     std::vector<std::string> ip_pool = {
         "192.168.1.10", "192.168.1.15", "10.0.0.2", "10.0.0.5", "172.16.0.3"
