@@ -8,11 +8,14 @@
 
 using boost::asio::ip::tcp;
 
-int main1() {
+// Function for regular batch processing mode
+int process_batch_mode()
+{
     const std::string server_ip = "127.0.0.1";
     const int server_port = 5555;
 
-    try {
+    try
+    {
         boost::asio::io_context io_context;
         tcp::socket socket(io_context);
         socket.connect(tcp::endpoint(boost::asio::ip::make_address(server_ip), server_port));
@@ -24,14 +27,17 @@ int main1() {
         std::istream is(&buffer);
         std::vector<Packet> packets;
 
-        while (true) {
+        while (true)
+        {
             boost::asio::read_until(socket, buffer, "\n");
             std::string line;
             std::getline(is, line);
 
-            if (line == "END") break;
+            if (line == "END")
+                break;
 
-            if (!line.empty()) {
+            if (!line.empty())
+            {
                 std::cout << "[ChildNode] Received packet: " << line << std::endl;
                 packets.push_back(Packet::deserialize(line));
             }
@@ -44,9 +50,11 @@ int main1() {
         int malicious_count = 0;
         std::ostringstream result;
 
-        for (const auto& pkt : packets) {
+        for (const auto &pkt : packets)
+        {
             std::pair<bool, std::string> analysis = analyzer.analyze(pkt);
-            if (analysis.first) {
+            if (analysis.first)
+            {
                 ++malicious_count;
                 result << "[!] Malicious: " << analysis.second << " | Src: " << pkt.src_ip << "\n";
             }
@@ -54,19 +62,131 @@ int main1() {
 
         std::ostringstream final_response;
         final_response << "Total: " << packets.size()
-            << ", Malicious: " << malicious_count
-            << "\n" << result.str();
+                       << ", Malicious: " << malicious_count
+                       << "\n"
+                       << result.str();
 
         std::string result_str = final_response.str();
 
         boost::asio::write(socket, boost::asio::buffer(result_str + "\n"));
 
-        std::cout << "[ChildNode] Sent analysis result back to Main Node.\n" << std::endl;
-
+        std::cout << "[ChildNode] Sent analysis result back to Main Node.\n"
+                  << std::endl;
     }
-    catch (std::exception& e) {
+    catch (std::exception &e)
+    {
         std::cerr << "[ChildNode] Exception: " << e.what() << std::endl;
     }
 
     return 0;
+}
+
+// Function for continuous live capture analysis mode
+int process_live_capture_mode()
+{
+    const std::string server_ip = "127.0.0.1";
+    const int server_port = 5555;
+
+    try
+    {
+        boost::asio::io_context io_context;
+        tcp::socket socket(io_context);
+
+        std::cout << "[WorkerNode] Connecting to main node at " << server_ip << ":" << server_port << std::endl;
+        socket.connect(tcp::endpoint(boost::asio::ip::make_address(server_ip), server_port));
+        std::cout << "[WorkerNode] Connected to main node." << std::endl;
+
+        // Create analyzer
+        TrafficAnalyzer analyzer;
+
+        // Process packets in continuous mode
+        while (true)
+        {
+            // Storage for the current batch
+            std::vector<Packet> packets;
+
+            // Read incoming packets until END marker
+            boost::asio::streambuf buffer;
+            std::istream is(&buffer);
+
+            while (true)
+            {
+                boost::asio::read_until(socket, buffer, "\n");
+                std::string line;
+                std::getline(is, line);
+
+                if (line == "END")
+                    break;
+
+                if (!line.empty())
+                {
+                    packets.push_back(Packet::deserialize(line));
+                }
+            }
+
+            if (packets.empty())
+            {
+                // Main node is likely shutting down or connection was lost
+                std::cout << "[WorkerNode] Received empty batch, exiting..." << std::endl;
+                break;
+            }
+
+            // Analyze packets
+            int malicious_count = 0;
+            std::ostringstream result;
+
+            for (const auto &pkt : packets)
+            {
+                std::pair<bool, std::string> analysis = analyzer.analyze(pkt);
+                if (analysis.first)
+                {
+                    ++malicious_count;
+                    result << "[!] Malicious: " << analysis.second
+                           << " | Src: " << pkt.src_ip
+                           << " | Dst: " << pkt.dst_ip
+                           << " | Port: " << pkt.port << "\n";
+                }
+            }
+
+            // Send results back
+            std::ostringstream final_response;
+            final_response << "Total: " << packets.size()
+                           << ", Malicious: " << malicious_count;
+
+            if (malicious_count > 0)
+            {
+                final_response << "\n"
+                               << result.str();
+            }
+
+            std::string result_str = final_response.str();
+            boost::asio::write(socket, boost::asio::buffer(result_str + "\n"));
+        }
+    }
+    catch (std::exception &e)
+    {
+        std::cerr << "[WorkerNode] Exception: " << e.what() << std::endl;
+    }
+
+    return 0;
+}
+
+int main1()
+{
+    std::cout << "Select child node mode:" << std::endl;
+    std::cout << "1. Batch processing (original mode)" << std::endl;
+    std::cout << "2. Live capture worker node" << std::endl;
+    std::cout << "Mode: ";
+
+    int mode;
+    std::cin >> mode;
+
+    if (mode == 2)
+    {
+        return process_live_capture_mode();
+    }
+    else
+    {
+        return process_batch_mode();
+    }
 }
