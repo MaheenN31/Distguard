@@ -19,7 +19,7 @@ struct Packet
         return src_ip + "|" + dst_ip + "|" + std::to_string(port) + "|" + payload;
     }
 
-    static Packet deserialize(const std::string &data)
+    static Packet deserialize(const std::string& data)
     {
         std::stringstream ss(data);
         Packet packet;
@@ -40,7 +40,7 @@ struct Packet
                 packet.port = 0; // Default port if empty
             }
         }
-        catch (const std::exception &e)
+        catch (const std::exception& e)
         {
             std::cerr << "Error parsing port: " << e.what() << ", input: '" << port_str << "'" << std::endl;
             packet.port = 0; // Default to 0 on error

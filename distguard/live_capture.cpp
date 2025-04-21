@@ -54,17 +54,17 @@ struct tcp_header
 // Add this struct definition before the distributed_packet_handler function
 struct PacketHandlerData
 {
-    std::queue<Packet> *packet_queue;
-    std::mutex *queue_mutex;
+    std::queue<Packet>* packet_queue;
+    std::mutex* queue_mutex;
 };
 
 // Packet processing callback function
-void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u_char *packet)
+void packet_handler(u_char* user_data, const struct pcap_pkthdr* pkthdr, const u_char* packet)
 {
-    TrafficAnalyzer *analyzer = reinterpret_cast<TrafficAnalyzer *>(user_data);
+    TrafficAnalyzer* analyzer = reinterpret_cast<TrafficAnalyzer*>(user_data);
 
     // Define Ethernet header
-    const ether_header *eth_header = reinterpret_cast<const ether_header *>(packet);
+    const ether_header* eth_header = reinterpret_cast<const ether_header*>(packet);
 
     // Skip non-IP packets
     if (ntohs(eth_header->ether_type) != 0x0800)
@@ -73,7 +73,7 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
     }
 
     // Define IP header
-    const ip_header *ip_hdr = reinterpret_cast<const ip_header *>(packet + sizeof(ether_header));
+    const ip_header* ip_hdr = reinterpret_cast<const ip_header*>(packet + sizeof(ether_header));
 
     // Calculate IP header length
     int ip_header_len = (ip_hdr->ip_vhl & 0x0f) * 4;
@@ -85,7 +85,7 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
     }
 
     // Define TCP header
-    const tcp_header *tcp_hdr = reinterpret_cast<const tcp_header *>(packet + sizeof(ether_header) + ip_header_len);
+    const tcp_header* tcp_hdr = reinterpret_cast<const tcp_header*>(packet + sizeof(ether_header) + ip_header_len);
 
     // Create Packet structure for analysis
     Packet pkt;
@@ -108,7 +108,7 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
     {
         // Copy up to 100 bytes of payload (to avoid huge buffers)
         int bytes_to_copy = payload_length > 100 ? 100 : payload_length;
-        std::string payload(reinterpret_cast<const char *>(packet + payload_offset), bytes_to_copy);
+        std::string payload(reinterpret_cast<const char*>(packet + payload_offset), bytes_to_copy);
         pkt.payload = payload;
     }
     else
@@ -131,15 +131,15 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
 }
 
 // Modified packet handler for distributed mode
-void distributed_packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u_char *packet)
+void distributed_packet_handler(u_char* user_data, const struct pcap_pkthdr* pkthdr, const u_char* packet)
 {
     // Cast user_data to our handler data struct
-    auto *data = reinterpret_cast<PacketHandlerData *>(user_data);
-    auto *packet_queue = data->packet_queue;
-    auto *queue_mutex = data->queue_mutex;
+    auto* data = reinterpret_cast<PacketHandlerData*>(user_data);
+    auto* packet_queue = data->packet_queue;
+    auto* queue_mutex = data->queue_mutex;
 
     // Define Ethernet header
-    const ether_header *eth_header = reinterpret_cast<const ether_header *>(packet);
+    const ether_header* eth_header = reinterpret_cast<const ether_header*>(packet);
 
     // Skip non-IP packets
     if (ntohs(eth_header->ether_type) != 0x0800)
@@ -148,7 +148,7 @@ void distributed_packet_handler(u_char *user_data, const struct pcap_pkthdr *pkt
     }
 
     // Define IP header
-    const ip_header *ip_hdr = reinterpret_cast<const ip_header *>(packet + sizeof(ether_header));
+    const ip_header* ip_hdr = reinterpret_cast<const ip_header*>(packet + sizeof(ether_header));
 
     // Calculate IP header length
     int ip_header_len = (ip_hdr->ip_vhl & 0x0f) * 4;
@@ -160,7 +160,7 @@ void distributed_packet_handler(u_char *user_data, const struct pcap_pkthdr *pkt
     }
 
     // Define TCP header
-    const tcp_header *tcp_hdr = reinterpret_cast<const tcp_header *>(packet + sizeof(ether_header) + ip_header_len);
+    const tcp_header* tcp_hdr = reinterpret_cast<const tcp_header*>(packet + sizeof(ether_header) + ip_header_len);
 
     // Create Packet structure for distribution
     Packet pkt;
@@ -183,7 +183,7 @@ void distributed_packet_handler(u_char *user_data, const struct pcap_pkthdr *pkt
     {
         // Copy up to 100 bytes of payload (to avoid huge buffers)
         int bytes_to_copy = payload_length > 100 ? 100 : payload_length;
-        std::string payload(reinterpret_cast<const char *>(packet + payload_offset), bytes_to_copy);
+        std::string payload(reinterpret_cast<const char*>(packet + payload_offset), bytes_to_copy);
         pkt.payload = payload;
     }
     else
@@ -199,13 +199,14 @@ void distributed_packet_handler(u_char *user_data, const struct pcap_pkthdr *pkt
 }
 
 // Worker function to handle communication with a child node
-void worker_thread(boost::asio::ip::tcp::socket socket, std::queue<Packet> &packet_queue,
-                   std::mutex &queue_mutex, std::atomic<bool> &running, int node_id)
+void worker_thread(boost::asio::ip::tcp::socket socket, std::queue<Packet>& packet_queue,
+    std::mutex& queue_mutex, std::atomic<bool>& running, int node_id)
 {
     try
     {
         std::vector<Packet> batch;
         const int BATCH_SIZE = 20; // Number of packets to send in one batch
+        static std::mutex output_mutex; // Static mutex for synchronized output
 
         while (running)
         {
@@ -222,39 +223,75 @@ void worker_thread(boost::asio::ip::tcp::socket socket, std::queue<Packet> &pack
             // If we have packets, send them to the child node
             if (!batch.empty())
             {
-                // Serialize packets
-                boost::asio::streambuf buf;
-                std::ostream os(&buf);
+                try {
+                    // Serialize packets
+                    boost::asio::streambuf buf;
+                    std::ostream os(&buf);
 
-                for (const auto &pkt : batch)
-                {
-                    os << pkt.serialize() << "\n";
+                    for (const auto& pkt : batch)
+                    {
+                        os << pkt.serialize() << "\n";
+                    }
+                    os << "END\n";
+
+                    // Send to child node
+                    boost::asio::write(socket, buf);
+
+                    // Get results - read the complete message
+                    boost::asio::streambuf response_buf;
+                    std::string complete_response;
+                    std::vector<std::string> response_lines;
+                    bool message_complete = false;
+                    
+                    while (!message_complete) {
+                        boost::asio::read_until(socket, response_buf, "\n");
+                        std::istream is(&response_buf);
+                        std::string line;
+                        std::getline(is, line);
+                        
+                        // Remove any carriage returns
+                        if (!line.empty() && line.back() == '\r') {
+                            line.pop_back();
+                        }
+                        
+                        if (line.empty()) {
+                            if (response_lines.empty()) {
+                                continue; // Skip leading empty lines
+                            }
+                            message_complete = true;
+                        } else {
+                            response_lines.push_back(line);
+                        }
+                    }
+
+                    // Use a mutex to ensure synchronized console output
+                    {
+                        std::lock_guard<std::mutex> output_lock(output_mutex);
+                        std::cout << "\n[Node " << node_id << " Results]"
+                                 << "\n----------------------------------------\n";
+                        
+                        for (const auto& line : response_lines) {
+                            std::cout << line << "\n";
+                        }
+                        
+                        std::cout << "----------------------------------------" << std::endl;
+                    }
+
+                    // Clear batch for next round
+                    batch.clear();
+                } catch (const std::exception& e) {
+                    std::lock_guard<std::mutex> output_lock(output_mutex);
+                    std::cerr << "[Node " << node_id << "] Error processing batch: " << e.what() << std::endl;
+                    batch.clear();
+                    continue;
                 }
-                os << "END\n";
-
-                // Send to child node
-                boost::asio::write(socket, buf);
-
-                // Get results
-                boost::asio::streambuf response_buf;
-                boost::asio::read_until(socket, response_buf, "\n");
-                std::istream is(&response_buf);
-                std::string response;
-                std::getline(is, response);
-
-                // Display results
-                std::cout << "\n[Node " << node_id << " Results]\n"
-                          << response << std::endl;
-
-                // Clear batch for next round
-                batch.clear();
             }
 
             // Small sleep to prevent CPU thrashing
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
-    catch (std::exception &e)
+    catch (std::exception& e)
     {
         std::cerr << "[DistributedCapture] Worker " << node_id << " exception: " << e.what() << std::endl;
     }
@@ -264,12 +301,12 @@ void worker_thread(boost::asio::ip::tcp::socket socket, std::queue<Packet> &pack
 int distributed_live_capture(int num_nodes)
 {
     // Variables
-    pcap_if_t *alldevs;
-    pcap_if_t *device;
-    pcap_t *handle;
+    pcap_if_t* alldevs;
+    pcap_if_t* device;
+    pcap_t* handle;
     char errbuf[PCAP_ERRBUF_SIZE];
     int device_count = 0;
-    std::atomic<bool> running{true};
+    std::atomic<bool> running{ true };
 
     // Packet queue for distribution to worker nodes
     std::queue<Packet> packet_queue;
@@ -368,7 +405,7 @@ int distributed_live_capture(int num_nodes)
     // Set up server to accept connections from worker nodes
     boost::asio::io_context io_context;
     boost::asio::ip::tcp::acceptor acceptor(io_context,
-                                            boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 5555));
+        boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 5555));
 
     std::vector<std::thread> worker_threads;
     std::vector<boost::asio::ip::tcp::socket> node_sockets;
@@ -386,17 +423,17 @@ int distributed_live_capture(int num_nodes)
     for (int i = 0; i < num_nodes; ++i)
     {
         worker_threads.emplace_back(worker_thread, std::move(node_sockets[i]),
-                                    std::ref(packet_queue), std::ref(queue_mutex),
-                                    std::ref(running), i + 1);
+            std::ref(packet_queue), std::ref(queue_mutex),
+            std::ref(running), i + 1);
     }
 
     // Create a separate thread for keyboard input
     std::thread input_thread([&running]()
-                             {
-        std::cout << "Distributed live capture started. Press Enter to stop..." << std::endl;
-        std::cin.get(); // Clear previous Enter from device selection
-        std::cin.get(); // Wait for Enter key
-        running = false; });
+        {
+            std::cout << "Distributed live capture started. Press Enter to stop..." << std::endl;
+            std::cin.get(); // Clear previous Enter from device selection
+            std::cin.get(); // Wait for Enter key
+            running = false; });
 
     std::cout << "Starting distributed traffic capture and analysis on selected interface..." << std::endl;
     std::cout << "Packets are being distributed to " << num_nodes << " worker nodes." << std::endl;
@@ -409,8 +446,8 @@ int distributed_live_capture(int num_nodes)
     // Start packet capture loop
     while (running)
     {
-        struct pcap_pkthdr *header;
-        const u_char *packet;
+        struct pcap_pkthdr* header;
+        const u_char* packet;
         int res = pcap_next_ex(handle, &header, &packet);
 
         if (res == 0)
@@ -431,7 +468,7 @@ int distributed_live_capture(int num_nodes)
         }
 
         // Process the packet
-        distributed_packet_handler(reinterpret_cast<u_char *>(&handler_data), header, packet);
+        distributed_packet_handler(reinterpret_cast<u_char*>(&handler_data), header, packet);
     }
 
     // No need to free user_data anymore since it's not dynamically allocated
@@ -439,7 +476,7 @@ int distributed_live_capture(int num_nodes)
 
     // Signal worker threads to finish and wait for them
     running = false;
-    for (auto &t : worker_threads)
+    for (auto& t : worker_threads)
     {
         if (t.joinable())
         {
@@ -482,12 +519,12 @@ int main4()
     {
         // Original single-machine implementation
         // Variables
-        pcap_if_t *alldevs;
-        pcap_if_t *device;
-        pcap_t *handle;
+        pcap_if_t* alldevs;
+        pcap_if_t* device;
+        pcap_t* handle;
         char errbuf[PCAP_ERRBUF_SIZE];
         int device_count = 0;
-        std::atomic<bool> running{true};
+        std::atomic<bool> running{ true };
 
         // Find all available devices
         if (pcap_findalldevs(&alldevs, errbuf) == -1)
@@ -582,11 +619,11 @@ int main4()
 
         // Create a separate thread for keyboard input
         std::thread input_thread([&running]()
-                                 {
-            std::cout << "Live capture started. Press Enter to stop..." << std::endl;
-            std::cin.get(); // Clear previous Enter from device selection
-            std::cin.get(); // Wait for Enter key
-            running = false; });
+            {
+                std::cout << "Live capture started. Press Enter to stop..." << std::endl;
+                std::cin.get(); // Clear previous Enter from device selection
+                std::cin.get(); // Wait for Enter key
+                running = false; });
 
         std::cout << "Starting traffic capture and analysis on selected interface..." << std::endl;
         std::cout << "Analyzing packets in real-time. Suspicious traffic will be flagged." << std::endl;
@@ -594,8 +631,8 @@ int main4()
         // Start packet capture loop
         while (running)
         {
-            struct pcap_pkthdr *header;
-            const u_char *packet;
+            struct pcap_pkthdr* header;
+            const u_char* packet;
             int res = pcap_next_ex(handle, &header, &packet);
 
             if (res == 0)
@@ -616,7 +653,7 @@ int main4()
             }
 
             // Process the packet
-            packet_handler(reinterpret_cast<u_char *>(&analyzer), header, packet);
+            packet_handler(reinterpret_cast<u_char*>(&analyzer), header, packet);
         }
 
         // Cleanup
