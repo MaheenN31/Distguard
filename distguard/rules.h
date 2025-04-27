@@ -1,6 +1,5 @@
 #ifndef RULES_H
 #define RULES_H
-
 #include "shared.h"
 #include <unordered_map>
 #include <unordered_set>
@@ -45,7 +44,7 @@ private:
         139    // NetBIOS
     };
 
-    // Content-based detection
+    // Content-based detection-checks payload
     std::vector<std::string> maliciousKeywords = {
         "malware", "exploit", "virus", "trojan", "botnet", "backdoor",
         "shell", "phish", "ransomware", "password", "credentials",
@@ -287,42 +286,55 @@ public:
             }
         }
 
-        // 1. Rate limiting detection (too many packets from same IP in short time)
-        if (ipCounter[packet.src_ip] > 30 &&
-            (currentTime - ipFirstSeen[packet.src_ip]) < 60)
-        { // 30+ packets in 60 seconds
+        // 1. Rate limiting detection (adjusted thresholds)
+        if (ipCounter[packet.src_ip] > 50 &&
+            (currentTime - ipFirstSeen[packet.src_ip]) < 30)
+        { // 50+ packets in 30 seconds
             return {true, "Possible DoS attack - high packet rate from " + packet.src_ip};
         }
 
-        // 2. Port scan detection (accessing many different ports)
-        if (ipPortsScanned[packet.src_ip].size() > 15)
+        // 2. Port scan detection (with time window)
+        if (ipPortsScanned[packet.src_ip].size() > 10)
         {
-            return {true, "Possible port scan from " + packet.src_ip};
+            auto lastScan = lastPortScan.find(packet.src_ip);
+            if (lastScan == lastPortScan.end() ||
+                (currentTime - lastScan->second) > 300)
+            { // Reset after 5 minutes
+                lastPortScan[packet.src_ip] = currentTime;
+                return {true, "Possible port scan detected from " + packet.src_ip};
+            }
         }
 
         // 3. Suspicious port check
         if (suspiciousPorts.count(packet.port))
         {
-            return {true, "Suspicious destination port: " + std::to_string(packet.port)};
+            return {true, "Connection attempt to suspicious port " + std::to_string(packet.port)};
         }
 
-        // 4. Excessive session volume
+        // 4. Session analysis
         Session &session = sessions[sessionKey];
-        if (session.packetCount > 100 && (currentTime - session.startTime) < 30)
+        if (session.packetCount > 100 && (currentTime - session.startTime) < 60)
         {
-            return {true, "Excessive traffic in session from " + packet.src_ip};
+            return {true, "High-volume session detected from " + packet.src_ip};
         }
 
-        // 5. Payload signature scan
+        // 5. Payload size anomaly
+        if (ipByteCounter[packet.src_ip] > 1000000 && // 1MB
+            (currentTime - ipFirstSeen[packet.src_ip]) < 60)
+        {
+            return {true, "Abnormal data volume from " + packet.src_ip};
+        }
+
+        // 6. Payload signature scan
         for (const auto &keyword : maliciousKeywords)
         {
             if (packet.payload.find(keyword) != std::string::npos)
             {
-                return {true, "Payload contains malicious keyword: " + keyword};
+                return {true, "Suspicious content detected: " + keyword};
             }
         }
 
-        // 6. Pattern-based detection using regex
+        // 7. Pattern-based detection using regex
         for (size_t i = 0; i < patterns.size(); i++)
         {
             if (std::regex_search(packet.payload, patterns[i]))
