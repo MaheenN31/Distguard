@@ -57,8 +57,8 @@ void handle_client(tcp::socket socket, const std::vector<Packet> &traffic_chunk,
 int main2()
 {
     const int port = 5555;
-    const int num_clients = 3;
-    const int packets_per_client = 10;
+    const int num_clients = 2;
+    const int packets_per_client = 100;
 
     try
     {

@@ -100,6 +100,10 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
     pkt.dst_ip = dst_ip;
     pkt.port = ntohs(tcp_hdr->th_dport);
 
+    // Extract TCP flags and sequence number for attack detection
+    pkt.flags = tcp_hdr->th_flags;
+    pkt.seq = ntohl(tcp_hdr->th_seq);
+
     // Extract payload (simplistic approach)
     int payload_offset = sizeof(ether_header) + ip_header_len + ((tcp_hdr->th_offx2 >> 4) * 4);
     int payload_length = pkthdr->len - payload_offset;
@@ -175,6 +179,10 @@ void distributed_packet_handler(u_char *user_data, const struct pcap_pkthdr *pkt
     pkt.dst_ip = dst_ip;
     pkt.port = ntohs(tcp_hdr->th_dport);
 
+    // Extract TCP flags and sequence number for attack detection
+    pkt.flags = tcp_hdr->th_flags;
+    pkt.seq = ntohl(tcp_hdr->th_seq);
+
     // Extract payload (simplistic approach)
     int payload_offset = sizeof(ether_header) + ip_header_len + ((tcp_hdr->th_offx2 >> 4) * 4);
     int payload_length = pkthdr->len - payload_offset;
@@ -205,7 +213,8 @@ void worker_thread(boost::asio::ip::tcp::socket socket, std::queue<Packet> &pack
     try
     {
         std::vector<Packet> batch;
-        const int BATCH_SIZE = 20; // Number of packets to send in one batch
+        const int BATCH_SIZE = 20;      // Number of packets to send in one batch
+        static std::mutex output_mutex; // Static mutex for synchronized output
 
         while (running)
         {
@@ -222,32 +231,78 @@ void worker_thread(boost::asio::ip::tcp::socket socket, std::queue<Packet> &pack
             // If we have packets, send them to the child node
             if (!batch.empty())
             {
-                // Serialize packets
-                boost::asio::streambuf buf;
-                std::ostream os(&buf);
-
-                for (const auto &pkt : batch)
+                try
                 {
-                    os << pkt.serialize() << "\n";
+                    // Serialize packets
+                    boost::asio::streambuf buf;
+                    std::ostream os(&buf);
+
+                    for (const auto &pkt : batch)
+                    {
+                        os << pkt.serialize() << "\n";
+                    }
+                    os << "END\n";
+
+                    // Send to child node
+                    boost::asio::write(socket, buf);
+
+                    // Get results - read the complete message
+                    boost::asio::streambuf response_buf;
+                    std::string complete_response;
+                    std::vector<std::string> response_lines;
+                    bool message_complete = false;
+
+                    while (!message_complete)
+                    {
+                        boost::asio::read_until(socket, response_buf, "\n");
+                        std::istream is(&response_buf);
+                        std::string line;
+                        std::getline(is, line);
+
+                        // Remove any carriage returns
+                        if (!line.empty() && line.back() == '\r')
+                        {
+                            line.pop_back();
+                        }
+
+                        if (line.empty())
+                        {
+                            if (response_lines.empty())
+                            {
+                                continue; // Skip leading empty lines
+                            }
+                            message_complete = true;
+                        }
+                        else
+                        {
+                            response_lines.push_back(line);
+                        }
+                    }
+
+                    // Use a mutex to ensure synchronized console output
+                    {
+                        std::lock_guard<std::mutex> output_lock(output_mutex);
+                        std::cout << "\n[Node " << node_id << " Results]"
+                                  << "\n----------------------------------------\n";
+
+                        for (const auto &line : response_lines)
+                        {
+                            std::cout << line << "\n";
+                        }
+
+                        std::cout << "----------------------------------------" << std::endl;
+                    }
+
+                    // Clear batch for next round
+                    batch.clear();
                 }
-                os << "END\n";
-
-                // Send to child node
-                boost::asio::write(socket, buf);
-
-                // Get results
-                boost::asio::streambuf response_buf;
-                boost::asio::read_until(socket, response_buf, "\n");
-                std::istream is(&response_buf);
-                std::string response;
-                std::getline(is, response);
-
-                // Display results
-                std::cout << "\n[Node " << node_id << " Results]\n"
-                          << response << std::endl;
-
-                // Clear batch for next round
-                batch.clear();
+                catch (const std::exception &e)
+                {
+                    std::lock_guard<std::mutex> output_lock(output_mutex);
+                    std::cerr << "[Node " << node_id << "] Error processing batch: " << e.what() << std::endl;
+                    batch.clear();
+                    continue;
+                }
             }
 
             // Small sleep to prevent CPU thrashing
@@ -393,10 +448,10 @@ int distributed_live_capture(int num_nodes)
     // Create a separate thread for keyboard input
     std::thread input_thread([&running]()
                              {
-        std::cout << "Distributed live capture started. Press Enter to stop..." << std::endl;
-        std::cin.get(); // Clear previous Enter from device selection
-        std::cin.get(); // Wait for Enter key
-        running = false; });
+            std::cout << "Distributed live capture started. Press Enter to stop..." << std::endl;
+            std::cin.get(); // Clear previous Enter from device selection
+            std::cin.get(); // Wait for Enter key
+            running = false; });
 
     std::cout << "Starting distributed traffic capture and analysis on selected interface..." << std::endl;
     std::cout << "Packets are being distributed to " << num_nodes << " worker nodes." << std::endl;
@@ -583,10 +638,10 @@ int main4()
         // Create a separate thread for keyboard input
         std::thread input_thread([&running]()
                                  {
-            std::cout << "Live capture started. Press Enter to stop..." << std::endl;
-            std::cin.get(); // Clear previous Enter from device selection
-            std::cin.get(); // Wait for Enter key
-            running = false; });
+                std::cout << "Live capture started. Press Enter to stop..." << std::endl;
+                std::cin.get(); // Clear previous Enter from device selection
+                std::cin.get(); // Wait for Enter key
+                running = false; });
 
         std::cout << "Starting traffic capture and analysis on selected interface..." << std::endl;
         std::cout << "Analyzing packets in real-time. Suspicious traffic will be flagged." << std::endl;

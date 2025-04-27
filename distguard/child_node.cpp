@@ -56,19 +56,30 @@ int process_batch_mode()
             if (analysis.first)
             {
                 ++malicious_count;
-                result << "[!] Malicious: " << analysis.second << " | Src: " << pkt.src_ip << "\n";
+                result << "\n[ALERT] " << analysis.second
+                       << "\n  Source IP: " << pkt.src_ip
+                       << "\n  Dest IP: " << pkt.dst_ip
+                       << "\n  Port: " << pkt.port
+                       << "\n------------------------------------------\n";
             }
         }
 
         std::ostringstream final_response;
-        final_response << "Total: " << packets.size()
-                       << ", Malicious: " << malicious_count
-                       << "\n"
-                       << result.str();
+        final_response << "Total Packets: " << packets.size()
+                       << " | Malicious: " << malicious_count;
 
+        if (malicious_count > 0)
+        {
+            final_response << "\nDetailed Alerts:";
+            final_response << result.str();
+        }
+
+        // Send the response with proper message termination
         std::string result_str = final_response.str();
-
-        boost::asio::write(socket, boost::asio::buffer(result_str + "\n"));
+        boost::asio::streambuf response_buf;
+        std::ostream os(&response_buf);
+        os << result_str << "\n\n";
+        boost::asio::write(socket, response_buf);
 
         std::cout << "[ChildNode] Sent analysis result back to Main Node.\n"
                   << std::endl;
@@ -141,26 +152,31 @@ int process_live_capture_mode()
                 if (analysis.first)
                 {
                     ++malicious_count;
-                    result << "[!] Malicious: " << analysis.second
-                           << " | Src: " << pkt.src_ip
-                           << " | Dst: " << pkt.dst_ip
-                           << " | Port: " << pkt.port << "\n";
+                    result << "\n[ALERT] " << analysis.second
+                           << "\n  Source IP: " << pkt.src_ip
+                           << "\n  Dest IP: " << pkt.dst_ip
+                           << "\n  Port: " << pkt.port
+                           << "\n------------------------------------------\n";
                 }
             }
 
             // Send results back
             std::ostringstream final_response;
-            final_response << "Total: " << packets.size()
-                           << ", Malicious: " << malicious_count;
+            final_response << "Total Packets: " << packets.size()
+                           << " | Malicious: " << malicious_count;
 
             if (malicious_count > 0)
             {
-                final_response << "\n"
-                               << result.str();
+                final_response << "\nDetailed Alerts:";
+                final_response << result.str();
             }
 
+            // Send the response with proper message termination
             std::string result_str = final_response.str();
-            boost::asio::write(socket, boost::asio::buffer(result_str + "\n"));
+            boost::asio::streambuf response_buf;
+            std::ostream os(&response_buf);
+            os << result_str << "\n\n";
+            boost::asio::write(socket, response_buf);
         }
     }
     catch (std::exception &e)
