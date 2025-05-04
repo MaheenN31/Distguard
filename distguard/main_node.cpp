@@ -11,7 +11,7 @@ using namespace std;
 
 mutex cout_mutex;
 
-void handle_client(tcp::socket socket, const std::vector<Packet>& traffic_chunk, int client_id)
+void handle_client(tcp::socket socket, const std::vector<Packet> &traffic_chunk, int client_id)
 {
     try
     {
@@ -23,10 +23,11 @@ void handle_client(tcp::socket socket, const std::vector<Packet>& traffic_chunk,
             cout << "[MainNode] Sending " << traffic_chunk.size() << " packets to Client " << client_id << "..." << endl;
         }
 
-        for (const auto& pkt : traffic_chunk)
+        for (const auto &pkt : traffic_chunk)
         {
             std::string data = pkt.serialize() + "\n";
             os << data;
+            cout << "[MainNode] Sending packet: " << data;
         }
         os << "END\n";
         boost::asio::write(socket, buf);
@@ -47,7 +48,7 @@ void handle_client(tcp::socket socket, const std::vector<Packet>& traffic_chunk,
             cout << "[Client " << client_id << " Response] " << response << endl;
         }
     }
-    catch (exception& e)
+    catch (exception &e)
     {
         lock_guard<mutex> lock(cout_mutex);
         cerr << "[MainNode] Client handler exception: " << e.what() << endl;
@@ -57,8 +58,8 @@ void handle_client(tcp::socket socket, const std::vector<Packet>& traffic_chunk,
 int main2()
 {
     const int port = 5555;
-    const int num_clients = 2;
-    const int packets_per_client = 100;
+    const int num_clients = 3;
+    const int packets_per_client = 100; // Increased from 10 to 100
 
     try
     {
@@ -84,18 +85,18 @@ int main2()
         for (int i = 0; i < num_clients; ++i)
         {
             vector<Packet> chunk(traffic.begin() + i * packets_per_client,
-                traffic.begin() + (i + 1) * packets_per_client);
+                                 traffic.begin() + (i + 1) * packets_per_client);
             client_threads.emplace_back(handle_client, std::move(client_sockets[i]), chunk, i + 1);
         }
 
-        for (auto& t : client_threads)
+        for (auto &t : client_threads)
         {
             t.join();
         }
 
         cout << "[MainNode] All client responses received." << endl;
     }
-    catch (exception& e)
+    catch (exception &e)
     {
         cerr << "[MainNode] Exception: " << e.what() << endl;
     }

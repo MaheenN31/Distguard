@@ -1,0 +1,14 @@
+{
+  "name": "traffic-dashboard",
+  "version": "1.0.0",
+  "description": "Web dashboard for TrafficAnalyzer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "node-fetch": "^2.7.0",
+    "socket.io": "^4.0.1"
+  }
+}

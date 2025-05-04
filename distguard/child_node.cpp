@@ -38,8 +38,17 @@ int process_batch_mode()
 
             if (!line.empty())
             {
-                std::cout << "[ChildNode] Received packet: " << line << std::endl;
-                packets.push_back(Packet::deserialize(line));
+                try
+                {
+                    Packet pkt = Packet::deserialize(line);
+                    std::cout << "[ChildNode] Received packet: " << pkt.serialize() << std::endl;
+                    packets.push_back(pkt);
+                }
+                catch (const std::exception &e)
+                {
+                    std::cerr << "[ChildNode] Error parsing packet: " << e.what() << std::endl;
+                    continue;
+                }
             }
         }
 
@@ -50,25 +59,26 @@ int process_batch_mode()
         int malicious_count = 0;
         std::ostringstream result;
 
-        for (const auto& pkt : packets)
+        for (const auto &pkt : packets)
         {
             std::pair<bool, std::string> analysis = analyzer.analyze(pkt);
             if (analysis.first)
             {
                 ++malicious_count;
-                result << "\n[ALERT] " << analysis.second 
-                       << "\n  Source IP: " << pkt.src_ip 
-                       << "\n  Dest IP: " << pkt.dst_ip 
-                       << "\n  Port: " << pkt.port 
+                result << "\n[ALERT] " << analysis.second
+                       << "\n  Source IP: " << pkt.src_ip
+                       << "\n  Dest IP: " << pkt.dst_ip
+                       << "\n  Port: " << pkt.port
                        << "\n------------------------------------------\n";
             }
         }
 
         std::ostringstream final_response;
         final_response << "Total Packets: " << packets.size()
-                      << " | Malicious: " << malicious_count;
-        
-        if (malicious_count > 0) {
+                       << " | Malicious: " << malicious_count;
+
+        if (malicious_count > 0)
+        {
             final_response << "\nDetailed Alerts:";
             final_response << result.str();
         }
@@ -81,9 +91,9 @@ int process_batch_mode()
         boost::asio::write(socket, response_buf);
 
         std::cout << "[ChildNode] Sent analysis result back to Main Node.\n"
-            << std::endl;
+                  << std::endl;
     }
-    catch (std::exception& e)
+    catch (std::exception &e)
     {
         std::cerr << "[ChildNode] Exception: " << e.what() << std::endl;
     }
@@ -112,7 +122,8 @@ int process_live_capture_mode()
         // Process packets in continuous mode
         while (true)
         {
-            try {
+            try
+            {
                 // Storage for the current batch
                 std::vector<Packet> packets;
 
@@ -127,7 +138,8 @@ int process_live_capture_mode()
                     std::getline(is, line);
 
                     // Remove any carriage returns
-                    if (!line.empty() && line.back() == '\r') {
+                    if (!line.empty() && line.back() == '\r')
+                    {
                         line.pop_back();
                     }
 
@@ -136,10 +148,14 @@ int process_live_capture_mode()
 
                     if (!line.empty())
                     {
-                        try {
-                            packets.push_back(Packet::deserialize(line));
+                        try
+                        {
+                            Packet pkt = Packet::deserialize(line);
+                            std::cout << "[WorkerNode] Received packet: " << pkt.serialize() << std::endl;
+                            packets.push_back(pkt);
                         }
-                        catch (const std::exception& e) {
+                        catch (const std::exception &e)
+                        {
                             std::cerr << "[WorkerNode] Error parsing packet: " << e.what() << std::endl;
                             continue;
                         }
@@ -157,16 +173,16 @@ int process_live_capture_mode()
                 int malicious_count = 0;
                 std::ostringstream result;
 
-                for (const auto& pkt : packets)
+                for (const auto &pkt : packets)
                 {
                     std::pair<bool, std::string> analysis = analyzer.analyze(pkt);
                     if (analysis.first)
                     {
                         ++malicious_count;
-                        result << "\n[ALERT] " << analysis.second 
-                               << "\n  Source IP: " << pkt.src_ip 
-                               << "\n  Dest IP: " << pkt.dst_ip 
-                               << "\n  Port: " << pkt.port 
+                        result << "\n[ALERT] " << analysis.second
+                               << "\n  Source IP: " << pkt.src_ip
+                               << "\n  Dest IP: " << pkt.dst_ip
+                               << "\n  Port: " << pkt.port
                                << "\n------------------------------------------\n";
                     }
                 }
@@ -174,9 +190,10 @@ int process_live_capture_mode()
                 // Send results back
                 std::ostringstream final_response;
                 final_response << "Total Packets: " << packets.size()
-                              << " | Malicious: " << malicious_count;
-                
-                if (malicious_count > 0) {
+                               << " | Malicious: " << malicious_count;
+
+                if (malicious_count > 0)
+                {
                     final_response << "\nDetailed Alerts:";
                     final_response << result.str();
                 }
@@ -187,19 +204,15 @@ int process_live_capture_mode()
                 std::ostream os(&response_buf);
                 os << result_str << "\n\n";
                 boost::asio::write(socket, response_buf);
-
             }
-            catch (const boost::system::system_error& e) {
-                if (e.code() == boost::asio::error::eof ||
-                    e.code() == boost::asio::error::connection_reset) {
-                    std::cout << "[WorkerNode] Connection closed by main node." << std::endl;
-                    break;
-                }
-                throw;
+            catch (const std::exception &e)
+            {
+                std::cerr << "[WorkerNode] Error processing batch: " << e.what() << std::endl;
+                break;
             }
         }
     }
-    catch (std::exception& e)
+    catch (std::exception &e)
     {
         std::cerr << "[WorkerNode] Exception: " << e.what() << std::endl;
     }
@@ -209,9 +222,9 @@ int process_live_capture_mode()
 
 int main1()
 {
-    std::cout << "Select child node mode:" << std::endl;
-    std::cout << "1. Batch processing (original mode)" << std::endl;
-    std::cout << "2. Live capture worker node" << std::endl;
+    std::cout << "Select mode:" << std::endl;
+    std::cout << "1. Batch Processing" << std::endl;
+    std::cout << "2. Live Capture Analysis" << std::endl;
     std::cout << "Mode: ";
 
     int mode;

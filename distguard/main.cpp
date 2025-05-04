@@ -11,36 +11,36 @@ int main4(); // live_capture.cpp - Real-time traffic analysis
 int main6(); // dashboard.cpp - GUI Dashboard
 
 // New traffic simulator entry point
-int main5() 
+int main5()
 {
     std::cout << "Running Traffic Simulator..." << std::endl;
     std::cout << "How many packets would you like to generate? ";
-    
+
     int count;
     std::cin >> count;
-    
+
     if (count <= 0) {
         std::cout << "Invalid number of packets. Using default (100)." << std::endl;
         count = 100;
     }
-    
+
     std::cout << "Generating " << count << " packets..." << std::endl;
-    
+
     // Generate simulated traffic
     std::vector<Packet> packets = TrafficSimulator::generateTraffic(count);
-    
+
     std::cout << "Generated " << packets.size() << " packets. Analyzing..." << std::endl;
-    
+
     // Analyze the simulated packets
     TrafficAnalyzer analyzer;
     int malicious_count = 0;
-    
+
     std::cout << "\n====== Traffic Analysis Results ======\n" << std::endl;
-    
+
     for (const auto& packet : packets) {
         // Analyze each packet
         std::pair<bool, std::string> result = analyzer.analyze(packet);
-        
+
         // If it's malicious, print details
         if (result.first) {
             malicious_count++;
@@ -51,16 +51,16 @@ int main5()
             std::cout << "------------------------------------------" << std::endl;
         }
     }
-    
+
     std::cout << "\n====== Summary ======" << std::endl;
     std::cout << "Total packets: " << packets.size() << std::endl;
     std::cout << "Malicious packets: " << malicious_count << std::endl;
     std::cout << "Detection rate: " << (float)malicious_count / packets.size() * 100 << "%" << std::endl;
-    
+
     std::cout << "\nPress Enter to return to the main menu...";
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     std::cin.get();
-    
+
     return 0;
 }
 
@@ -106,6 +106,6 @@ int main()
             std::cout << "Invalid choice!" << std::endl;
         }
     }
-    
+
     return 0;
 }

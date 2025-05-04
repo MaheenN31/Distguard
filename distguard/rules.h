@@ -9,7 +9,7 @@
 #include <map>
 #include <ctime>
 
-class TrafficAnalyzer{
+class TrafficAnalyzer {
 private:
     // IP frequency monitoring
     std::unordered_map<std::string, int> ipCounter;
@@ -125,9 +125,10 @@ public:
         // Update session tracking
         std::string sessionKey = createSessionKey(packet);
         if (sessions.find(sessionKey) == sessions.end()) {
-            sessions[sessionKey] = { currentTime, 1, static_cast<int>(packet.payload.size()), 
+            sessions[sessionKey] = { currentTime, 1, static_cast<int>(packet.payload.size()),
                                    {packet.port}, 0 };
-        } else {
+        }
+        else {
             Session& session = sessions[sessionKey];
             session.packetCount++;
             session.byteCount += static_cast<int>(packet.payload.size());
@@ -135,7 +136,7 @@ public:
         }
 
         // 1. Rate limiting detection (adjusted thresholds)
-        if (ipCounter[packet.src_ip] > 50 && 
+        if (ipCounter[packet.src_ip] > 50 &&
             (currentTime - ipFirstSeen[packet.src_ip]) < 30) { // 50+ packets in 30 seconds
             return { true, "Possible DoS attack - high packet rate from " + packet.src_ip };
         }
@@ -143,7 +144,7 @@ public:
         // 2. Port scan detection (with time window)
         if (ipPortsScanned[packet.src_ip].size() > 10) {
             auto lastScan = lastPortScan.find(packet.src_ip);
-            if (lastScan == lastPortScan.end() || 
+            if (lastScan == lastPortScan.end() ||
                 (currentTime - lastScan->second) > 300) { // Reset after 5 minutes
                 lastPortScan[packet.src_ip] = currentTime;
                 return { true, "Possible port scan detected from " + packet.src_ip };
@@ -179,17 +180,17 @@ public:
             if (std::regex_search(packet.payload, patterns[i])) {
                 std::string patternType;
                 switch (i) {
-                    case 0: patternType = "command execution"; break;
-                    case 1: patternType = "SQL injection"; break;
-                    case 2: patternType = "directory traversal"; break;
-                    case 3: patternType = "script injection"; break;
-                    case 4: patternType = "suspicious download"; break;
-                    case 5: patternType = "shell command"; break;
-                    case 6: patternType = "reverse shell attempt"; break;
-                    case 7: patternType = "credential exposure"; break;
-                    case 8: patternType = "possible shellcode"; break;
-                    case 9: patternType = "suspicious file operation"; break;
-                    default: patternType = "suspicious pattern"; break;
+                case 0: patternType = "command execution"; break;
+                case 1: patternType = "SQL injection"; break;
+                case 2: patternType = "directory traversal"; break;
+                case 3: patternType = "script injection"; break;
+                case 4: patternType = "suspicious download"; break;
+                case 5: patternType = "shell command"; break;
+                case 6: patternType = "reverse shell attempt"; break;
+                case 7: patternType = "credential exposure"; break;
+                case 8: patternType = "possible shellcode"; break;
+                case 9: patternType = "suspicious file operation"; break;
+                default: patternType = "suspicious pattern"; break;
                 }
                 session.suspiciousPatternCount++;
                 return { true, "Detected potential " + patternType + " attempt" };
@@ -199,28 +200,29 @@ public:
         // SYN flood detection (New)
         if ((packet.tcp_flags & 0x02) && !(packet.tcp_flags & 0x10)) {  // SYN=1, ACK=0
             std::string target = packet.dst_ip + ":" + std::to_string(packet.port);
-            
+
             if (syn_flood_trackers.find(target) == syn_flood_trackers.end()) {
-                syn_flood_trackers[target] = {currentTime, 1, {packet.src_ip}};
-            } else {
+                syn_flood_trackers[target] = { currentTime, 1, {packet.src_ip} };
+            }
+            else {
                 SynTracker& tracker = syn_flood_trackers[target];
                 tracker.syn_count++;
                 tracker.source_ips.insert(packet.src_ip);
-                
+
                 // If more than 50 SYN packets to same target within 5 seconds from 10+ sources
-                if (tracker.syn_count > 50 && 
+                if (tracker.syn_count > 50 &&
                     (currentTime - tracker.first_syn <= 5) &&
                     tracker.source_ips.size() >= 10) {
-                    
+
                     // Reset tracker to avoid repeated alerts
-                    tracker = {currentTime, 0, {}};
-                    
-                    return {true, "SYN flood attack detected targeting " + target};
+                    tracker = { currentTime, 0, {} };
+
+                    return { true, "SYN flood attack detected targeting " + target };
                 }
-                
+
                 // Reset counter after 10 seconds to avoid false positives during normal traffic spikes
                 if (currentTime - tracker.first_syn > 10) {
-                    tracker = {currentTime, 1, {packet.src_ip}};
+                    tracker = { currentTime, 1, {packet.src_ip} };
                 }
             }
         }
@@ -228,34 +230,35 @@ public:
         // ACK flood detection
         if ((packet.tcp_flags & 0x10) && !(packet.tcp_flags & 0x02)) {  // ACK=1, SYN=0
             std::string target = packet.dst_ip + ":" + std::to_string(packet.port);
-            
+
             if (ack_flood_trackers.find(target) == ack_flood_trackers.end()) {
-                ack_flood_trackers[target] = {currentTime, 1, {packet.src_ip}};
-            } else {
+                ack_flood_trackers[target] = { currentTime, 1, {packet.src_ip} };
+            }
+            else {
                 AckTracker& tracker = ack_flood_trackers[target];
                 tracker.ack_count++;
                 tracker.source_ips.insert(packet.src_ip);
-                
+
                 // If more than 100 ACK packets to same target within 3 seconds from multiple sources
-                if (tracker.ack_count > 100 && 
+                if (tracker.ack_count > 100 &&
                     (currentTime - tracker.first_ack <= 3) &&
                     tracker.source_ips.size() >= 5) {
-                    
+
                     // Reset tracker to avoid repeated alerts
-                    tracker = {currentTime, 0, {}};
-                    return {true, "ACK flood attack detected targeting " + target};
+                    tracker = { currentTime, 0, {} };
+                    return { true, "ACK flood attack detected targeting " + target };
                 }
-                
+
                 // Reset counter after 5 seconds
                 if (currentTime - tracker.first_ack > 5) {
-                    tracker = {currentTime, 1, {packet.src_ip}};
+                    tracker = { currentTime, 1, {packet.src_ip} };
                 }
             }
         }
 
         // TCP replay detection
-        std::string connection = packet.src_ip + ":" + std::to_string(packet.src_port) + "->" + 
-                                  packet.dst_ip + ":" + std::to_string(packet.port);
+        std::string connection = packet.src_ip + ":" + std::to_string(packet.src_port) + "->" +
+            packet.dst_ip + ":" + std::to_string(packet.port);
 
         // Calculate a simple hash of payload
         std::string data_hash = std::to_string(std::hash<std::string>{}(packet.payload));
@@ -263,19 +266,21 @@ public:
 
         if (tcp_segments[connection].find(seq_num) == tcp_segments[connection].end()) {
             // First time seeing this segment
-            tcp_segments[connection][seq_num] = {data_hash, currentTime, 1};
-        } else {
+            tcp_segments[connection][seq_num] = { data_hash, currentTime, 1 };
+        }
+        else {
             Segment& seg = tcp_segments[connection][seq_num];
-            
+
             // If we see the same segment with same hash
             if (seg.data_hash == data_hash) {
                 seg.count++;
-                
+
                 // If we see same segment 3+ times within 2 seconds
                 if (seg.count >= 3 && (currentTime - seg.time_seen <= 2)) {
-                    return {true, "TCP replay attack detected on connection " + connection};
+                    return { true, "TCP replay attack detected on connection " + connection };
                 }
-            } else {
+            }
+            else {
                 // Different payload for same sequence - could be legitimate retransmission
                 seg.data_hash = data_hash;
                 seg.time_seen = currentTime;
@@ -292,31 +297,32 @@ public:
             profile.first_seen = currentTime;
             profile.last_seen = currentTime;
             ip_profiles[packet.src_ip] = profile;
-        } else {
+        }
+        else {
             // Update existing profile
             IPProfile& profile = ip_profiles[packet.src_ip];
             profile.typical_ports.insert(packet.port);
             profile.typical_payloads.insert(packet.payload.substr(0, 20));
             profile.last_seen = currentTime;
-            
+
             // Detection phase - after we've seen an IP for at least 10 seconds
             if (currentTime - profile.first_seen > 10) {
                 // Check for sudden behavior changes that suggest spoofing
                 bool suspicious = false;
-                
+
                 // If this IP suddenly uses many ports in short time
-                if (profile.typical_ports.size() < 5 && 
-                    ipPortsScanned[packet.src_ip].size() > 20 && 
+                if (profile.typical_ports.size() < 5 &&
+                    ipPortsScanned[packet.src_ip].size() > 20 &&
                     (currentTime - lastPortScan[packet.src_ip] < 5)) {
                     suspicious = true;
                 }
-                
+
                 // If the IP is sending traffic patterns very different from its history
                 if (profile.typical_payloads.size() >= 3) {
                     // Check if current payload matches any known pattern
                     bool matches_profile = false;
                     std::string payload_prefix = packet.payload.substr(0, 20);
-                    
+
                     for (const auto& known_payload : profile.typical_payloads) {
                         if (payload_prefix.find(known_payload) != std::string::npos ||
                             known_payload.find(payload_prefix) != std::string::npos) {
@@ -324,14 +330,14 @@ public:
                             break;
                         }
                     }
-                    
+
                     if (!matches_profile && packet.payload.size() > 10) {
                         suspicious = true;
                     }
                 }
-                
+
                 if (suspicious) {
-                    return {true, "Potential IP spoofing detected from " + packet.src_ip};
+                    return { true, "Potential IP spoofing detected from " + packet.src_ip };
                 }
             }
         }
@@ -342,7 +348,8 @@ public:
             while (it != sessions.end()) {
                 if (currentTime - it->second.startTime > 300) { // 5 minutes old
                     it = sessions.erase(it);
-                } else {
+                }
+                else {
                     ++it;
                 }
             }

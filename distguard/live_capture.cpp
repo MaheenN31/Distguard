@@ -103,10 +103,6 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
     pkt.tcp_flags = tcp_hdr->th_flags;
     pkt.tcp_seq = ntohl(tcp_hdr->th_seq);
 
-    // Extract TCP flags and sequence number for attack detection
-    pkt.flags = tcp_hdr->th_flags;
-    pkt.seq = ntohl(tcp_hdr->th_seq);
-
     // Extract payload (simplistic approach)
     int payload_offset = sizeof(ether_header) + ip_header_len + ((tcp_hdr->th_offx2 >> 4) * 4);
     int payload_length = pkthdr->len - payload_offset;
@@ -122,6 +118,9 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
     {
         pkt.payload = "[No Data]";
     }
+
+    // Print the packet in the new format
+    std::cout << pkt.serialize() << std::endl;
 
     // Analyze the packet
     std::pair<bool, std::string> result = analyzer->analyze(pkt);
@@ -185,10 +184,6 @@ void distributed_packet_handler(u_char *user_data, const struct pcap_pkthdr *pkt
     pkt.tcp_flags = tcp_hdr->th_flags;
     pkt.tcp_seq = ntohl(tcp_hdr->th_seq);
 
-    // Extract TCP flags and sequence number for attack detection
-    pkt.flags = tcp_hdr->th_flags;
-    pkt.seq = ntohl(tcp_hdr->th_seq);
-
     // Extract payload (simplistic approach)
     int payload_offset = sizeof(ether_header) + ip_header_len + ((tcp_hdr->th_offx2 >> 4) * 4);
     int payload_length = pkthdr->len - payload_offset;
@@ -204,6 +199,9 @@ void distributed_packet_handler(u_char *user_data, const struct pcap_pkthdr *pkt
     {
         pkt.payload = "[No Data]";
     }
+
+    // Print the packet in the new format
+    std::cout << pkt.serialize() << std::endl;
 
     // Add to packet queue for distribution
     {

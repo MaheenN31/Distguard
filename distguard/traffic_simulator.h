@@ -9,4 +9,4 @@ public:
     static std::vector<Packet> generateTraffic(int count);
 };
 
-#endif // TRAFFIC_SIMULATOR_H#pragma once
+#endif // TRAFFIC_SIMULATOR_H
