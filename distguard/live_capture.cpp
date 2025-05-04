@@ -98,7 +98,10 @@ void packet_handler(u_char *user_data, const struct pcap_pkthdr *pkthdr, const u
 
     pkt.src_ip = src_ip;
     pkt.dst_ip = dst_ip;
+    pkt.src_port = ntohs(tcp_hdr->th_sport);
     pkt.port = ntohs(tcp_hdr->th_dport);
+    pkt.tcp_flags = tcp_hdr->th_flags;
+    pkt.tcp_seq = ntohl(tcp_hdr->th_seq);
 
     // Extract TCP flags and sequence number for attack detection
     pkt.flags = tcp_hdr->th_flags;
@@ -177,7 +180,10 @@ void distributed_packet_handler(u_char *user_data, const struct pcap_pkthdr *pkt
 
     pkt.src_ip = src_ip;
     pkt.dst_ip = dst_ip;
+    pkt.src_port = ntohs(tcp_hdr->th_sport);
     pkt.port = ntohs(tcp_hdr->th_dport);
+    pkt.tcp_flags = tcp_hdr->th_flags;
+    pkt.tcp_seq = ntohl(tcp_hdr->th_seq);
 
     // Extract TCP flags and sequence number for attack detection
     pkt.flags = tcp_hdr->th_flags;

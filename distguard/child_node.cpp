@@ -50,26 +50,25 @@ int process_batch_mode()
         int malicious_count = 0;
         std::ostringstream result;
 
-        for (const auto &pkt : packets)
+        for (const auto& pkt : packets)
         {
             std::pair<bool, std::string> analysis = analyzer.analyze(pkt);
             if (analysis.first)
             {
                 ++malicious_count;
-                result << "\n[ALERT] " << analysis.second
-                       << "\n  Source IP: " << pkt.src_ip
-                       << "\n  Dest IP: " << pkt.dst_ip
-                       << "\n  Port: " << pkt.port
+                result << "\n[ALERT] " << analysis.second 
+                       << "\n  Source IP: " << pkt.src_ip 
+                       << "\n  Dest IP: " << pkt.dst_ip 
+                       << "\n  Port: " << pkt.port 
                        << "\n------------------------------------------\n";
             }
         }
 
         std::ostringstream final_response;
         final_response << "Total Packets: " << packets.size()
-                       << " | Malicious: " << malicious_count;
-
-        if (malicious_count > 0)
-        {
+                      << " | Malicious: " << malicious_count;
+        
+        if (malicious_count > 0) {
             final_response << "\nDetailed Alerts:";
             final_response << result.str();
         }
@@ -82,9 +81,9 @@ int process_batch_mode()
         boost::asio::write(socket, response_buf);
 
         std::cout << "[ChildNode] Sent analysis result back to Main Node.\n"
-                  << std::endl;
+            << std::endl;
     }
-    catch (std::exception &e)
+    catch (std::exception& e)
     {
         std::cerr << "[ChildNode] Exception: " << e.what() << std::endl;
     }
@@ -113,73 +112,94 @@ int process_live_capture_mode()
         // Process packets in continuous mode
         while (true)
         {
-            // Storage for the current batch
-            std::vector<Packet> packets;
+            try {
+                // Storage for the current batch
+                std::vector<Packet> packets;
 
-            // Read incoming packets until END marker
-            boost::asio::streambuf buffer;
-            std::istream is(&buffer);
+                // Read incoming packets until END marker
+                boost::asio::streambuf buffer;
+                std::istream is(&buffer);
 
-            while (true)
-            {
-                boost::asio::read_until(socket, buffer, "\n");
-                std::string line;
-                std::getline(is, line);
+                while (true)
+                {
+                    boost::asio::read_until(socket, buffer, "\n");
+                    std::string line;
+                    std::getline(is, line);
 
-                if (line == "END")
+                    // Remove any carriage returns
+                    if (!line.empty() && line.back() == '\r') {
+                        line.pop_back();
+                    }
+
+                    if (line == "END")
+                        break;
+
+                    if (!line.empty())
+                    {
+                        try {
+                            packets.push_back(Packet::deserialize(line));
+                        }
+                        catch (const std::exception& e) {
+                            std::cerr << "[WorkerNode] Error parsing packet: " << e.what() << std::endl;
+                            continue;
+                        }
+                    }
+                }
+
+                if (packets.empty())
+                {
+                    // Main node is likely shutting down or connection was lost
+                    std::cout << "[WorkerNode] Received empty batch, exiting..." << std::endl;
                     break;
-
-                if (!line.empty())
-                {
-                    packets.push_back(Packet::deserialize(line));
                 }
-            }
 
-            if (packets.empty())
-            {
-                // Main node is likely shutting down or connection was lost
-                std::cout << "[WorkerNode] Received empty batch, exiting..." << std::endl;
-                break;
-            }
+                // Analyze packets
+                int malicious_count = 0;
+                std::ostringstream result;
 
-            // Analyze packets
-            int malicious_count = 0;
-            std::ostringstream result;
-
-            for (const auto &pkt : packets)
-            {
-                std::pair<bool, std::string> analysis = analyzer.analyze(pkt);
-                if (analysis.first)
+                for (const auto& pkt : packets)
                 {
-                    ++malicious_count;
-                    result << "\n[ALERT] " << analysis.second
-                           << "\n  Source IP: " << pkt.src_ip
-                           << "\n  Dest IP: " << pkt.dst_ip
-                           << "\n  Port: " << pkt.port
-                           << "\n------------------------------------------\n";
+                    std::pair<bool, std::string> analysis = analyzer.analyze(pkt);
+                    if (analysis.first)
+                    {
+                        ++malicious_count;
+                        result << "\n[ALERT] " << analysis.second 
+                               << "\n  Source IP: " << pkt.src_ip 
+                               << "\n  Dest IP: " << pkt.dst_ip 
+                               << "\n  Port: " << pkt.port 
+                               << "\n------------------------------------------\n";
+                    }
                 }
+
+                // Send results back
+                std::ostringstream final_response;
+                final_response << "Total Packets: " << packets.size()
+                              << " | Malicious: " << malicious_count;
+                
+                if (malicious_count > 0) {
+                    final_response << "\nDetailed Alerts:";
+                    final_response << result.str();
+                }
+
+                // Send the response with proper message termination
+                std::string result_str = final_response.str();
+                boost::asio::streambuf response_buf;
+                std::ostream os(&response_buf);
+                os << result_str << "\n\n";
+                boost::asio::write(socket, response_buf);
+
             }
-
-            // Send results back
-            std::ostringstream final_response;
-            final_response << "Total Packets: " << packets.size()
-                           << " | Malicious: " << malicious_count;
-
-            if (malicious_count > 0)
-            {
-                final_response << "\nDetailed Alerts:";
-                final_response << result.str();
+            catch (const boost::system::system_error& e) {
+                if (e.code() == boost::asio::error::eof ||
+                    e.code() == boost::asio::error::connection_reset) {
+                    std::cout << "[WorkerNode] Connection closed by main node." << std::endl;
+                    break;
+                }
+                throw;
             }
-
-            // Send the response with proper message termination
-            std::string result_str = final_response.str();
-            boost::asio::streambuf response_buf;
-            std::ostream os(&response_buf);
-            os << result_str << "\n\n";
-            boost::asio::write(socket, response_buf);
         }
     }
-    catch (std::exception &e)
+    catch (std::exception& e)
     {
         std::cerr << "[WorkerNode] Exception: " << e.what() << std::endl;
     }
