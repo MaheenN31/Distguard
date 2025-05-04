@@ -4,7 +4,7 @@
 int main3()
 {
     // Declare variables
-    pcap_if_t* alldevs;
+    pcap_if_t *alldevs;
     char errbuf[PCAP_ERRBUF_SIZE];
 
     // Find all network devices
@@ -18,10 +18,10 @@ int main3()
     int deviceIndex = 0;
 
     // Loop through the list of devices and print them
-    for (pcap_if_t* dev = alldevs; dev != nullptr; dev = dev->next)
+    for (pcap_if_t *dev = alldevs; dev != nullptr; dev = dev->next)
     {
         std::cout << deviceIndex++ << ". " << dev->name << " - "
-            << (dev->description ? dev->description : "No description") << std::endl;
+                  << (dev->description ? dev->description : "No description") << std::endl;
     }
 
     // Ask user to select a device for packet capture
@@ -30,14 +30,14 @@ int main3()
     std::cin >> choice;
 
     // Select the chosen device
-    pcap_if_t* selected_device = alldevs;
+    pcap_if_t *selected_device = alldevs;
     for (int i = 0; i < choice; ++i)
     {
         selected_device = selected_device->next;
     }
 
     // Open the selected device for packet capturing
-    pcap_t* handle = pcap_open_live(selected_device->name, BUFSIZ, 1, 1000, errbuf);
+    pcap_t *handle = pcap_open_live(selected_device->name, BUFSIZ, 1, 1000, errbuf);
     if (handle == nullptr)
     {
         std::cerr << "Error opening device: " << errbuf << std::endl;
@@ -48,7 +48,7 @@ int main3()
 
     // Capture one packet and display its length
     struct pcap_pkthdr header;
-    const u_char* packet;
+    const u_char *packet;
     packet = pcap_next(handle, &header);
 
     std::cout << "Captured a packet with length: " << header.len << " bytes" << std::endl;

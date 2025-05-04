@@ -1,11 +1,11 @@
 #define WIN32_LEAN_AND_MEAN
-#define _WINSOCKAPI_   // Prevent winsock.h from being included by windows.h
+#define _WINSOCKAPI_ // Prevent winsock.h from being included by windows.h
 #define HAVE_REMOTE
 #define WPCAP
 
 #include <winsock2.h>
 #include <windows.h>
-#include <ws2tcpip.h>   // For inet_ntop
+#include <ws2tcpip.h> // For inet_ntop
 #include <commctrl.h>
 #include <string>
 #include <vector>
@@ -16,17 +16,19 @@
 #include "rules.h"
 #include "traffic_simulator.h"
 #include <pcap.h>
-#include <algorithm>  // For std::min
+#include <algorithm> // For std::min
 
 // Ethernet header structure
-struct ether_header {
-    u_char ether_dhost[6];  // Destination host address
-    u_char ether_shost[6];  // Source host address
-    u_short ether_type;     // Protocol type
+struct ether_header
+{
+    u_char ether_dhost[6]; // Destination host address
+    u_char ether_shost[6]; // Source host address
+    u_short ether_type;    // Protocol type
 };
 
 // IP header structure
-struct ip_header {
+struct ip_header
+{
     u_char ip_vhl;                 // Version and header length
     u_char ip_tos;                 // Type of service
     u_short ip_len;                // Total length
@@ -39,16 +41,17 @@ struct ip_header {
 };
 
 // TCP header structure
-struct tcp_header {
-    u_short th_sport;  // Source port
-    u_short th_dport;  // Destination port
-    u_int th_seq;      // Sequence number
-    u_int th_ack;      // Acknowledgement number
-    u_char th_offx2;   // Data offset and reserved
-    u_char th_flags;   // Flags
-    u_short th_win;    // Window
-    u_short th_sum;    // Checksum
-    u_short th_urp;    // Urgent pointer
+struct tcp_header
+{
+    u_short th_sport; // Source port
+    u_short th_dport; // Destination port
+    u_int th_seq;     // Sequence number
+    u_int th_ack;     // Acknowledgement number
+    u_char th_offx2;  // Data offset and reserved
+    u_char th_flags;  // Flags
+    u_short th_win;   // Window
+    u_short th_sum;   // Checksum
+    u_short th_urp;   // Urgent pointer
 };
 
 #pragma comment(lib, "comctl32.lib")
@@ -68,12 +71,13 @@ HWND g_hSummaryText = NULL;
 HWND g_hInterfaceCombo = NULL;
 HWND g_hStartCaptureButton = NULL;
 HWND g_hStopCaptureButton = NULL;
-std::atomic<bool> g_captureRunning{ false };
+std::atomic<bool> g_captureRunning{false};
 std::thread g_captureThread;
 std::mutex g_alertsMutex;
 
 // Alert structure
-struct AlertEntry {
+struct AlertEntry
+{
     std::string type;
     std::string source;
     std::string target;
@@ -88,9 +92,10 @@ void CreateControls(HWND hwnd);
 void ShowTab(int tabIndex);
 void RunSimulation();
 void UpdateAlertsList();
-void LiveCaptureThread(pcap_t* handle);
+void LiveCaptureThread(pcap_t *handle);
 
-int main6() {
+int main6()
+{
     // Initialize common controls
     INITCOMMONCONTROLSEX iccx;
     iccx.dwSize = sizeof(INITCOMMONCONTROLSEX);
@@ -98,7 +103,7 @@ int main6() {
     InitCommonControlsEx(&iccx);
 
     // Register window class
-    WNDCLASSEX wc = { 0 };
+    WNDCLASSEX wc = {0};
     wc.cbSize = sizeof(WNDCLASSEX);
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = GetModuleHandle(NULL);
@@ -106,7 +111,8 @@ int main6() {
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszClassName = L"DistGuardWindow";
 
-    if (!RegisterClassEx(&wc)) {
+    if (!RegisterClassEx(&wc))
+    {
         MessageBoxW(NULL, L"Window Registration Failed!", L"Error", MB_ICONEXCLAMATION | MB_OK);
         return 0;
     }
@@ -118,10 +124,10 @@ int main6() {
         L"DistGuard Dashboard",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
-        NULL, NULL, GetModuleHandle(NULL), NULL
-    );
+        NULL, NULL, GetModuleHandle(NULL), NULL);
 
-    if (!g_hWnd) {
+    if (!g_hWnd)
+    {
         MessageBoxW(NULL, L"Window Creation Failed!", L"Error", MB_ICONEXCLAMATION | MB_OK);
         return 0;
     }
@@ -134,8 +140,9 @@ int main6() {
     UpdateWindow(g_hWnd);
 
     // Message loop
-    MSG msg = { 0 };
-    while (GetMessage(&msg, NULL, 0, 0)) {
+    MSG msg = {0};
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
@@ -143,7 +150,8 @@ int main6() {
     return (int)msg.wParam;
 }
 
-void CreateControls(HWND hwnd) {
+void CreateControls(HWND hwnd)
+{
     // Create tab control
     g_hTabControl = CreateWindowExW(
         0,
@@ -151,8 +159,7 @@ void CreateControls(HWND hwnd) {
         L"",
         WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
         10, 10, 760, 540,
-        hwnd, (HMENU)100, GetModuleHandle(NULL), NULL
-    );
+        hwnd, (HMENU)100, GetModuleHandle(NULL), NULL);
 
     // Add tabs
     TCITEMW tie;
@@ -174,8 +181,7 @@ void CreateControls(HWND hwnd) {
         L"100",
         WS_CHILD | WS_VISIBLE | WS_BORDER | ES_NUMBER,
         50, 70, 100, 25,
-        hwnd, (HMENU)101, GetModuleHandle(NULL), NULL
-    );
+        hwnd, (HMENU)101, GetModuleHandle(NULL), NULL);
 
     g_hRunButton = CreateWindowExW(
         0,
@@ -183,8 +189,7 @@ void CreateControls(HWND hwnd) {
         L"Run Simulation",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         160, 70, 150, 30,
-        hwnd, (HMENU)102, GetModuleHandle(NULL), NULL
-    );
+        hwnd, (HMENU)102, GetModuleHandle(NULL), NULL);
 
     g_hSummaryText = CreateWindowExW(
         0,
@@ -192,8 +197,7 @@ void CreateControls(HWND hwnd) {
         L"",
         WS_CHILD | WS_VISIBLE,
         50, 110, 600, 80,
-        hwnd, (HMENU)103, GetModuleHandle(NULL), NULL
-    );
+        hwnd, (HMENU)103, GetModuleHandle(NULL), NULL);
 
     // Create alerts list view
     g_hAlertsList = CreateWindowExW(
@@ -202,8 +206,7 @@ void CreateControls(HWND hwnd) {
         L"",
         WS_CHILD | WS_BORDER | LVS_REPORT,
         50, 70, 700, 450,
-        hwnd, (HMENU)104, GetModuleHandle(NULL), NULL
-    );
+        hwnd, (HMENU)104, GetModuleHandle(NULL), NULL);
 
     // Set up list view columns
     LVCOLUMN lvc;
@@ -240,38 +243,37 @@ void CreateControls(HWND hwnd) {
         0, L"COMBOBOX", L"",
         WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
         50, 70, 300, 200,
-        hwnd, (HMENU)105, GetModuleHandle(NULL), NULL
-    );
+        hwnd, (HMENU)105, GetModuleHandle(NULL), NULL);
 
     g_hStartCaptureButton = CreateWindowExW(
         0, L"BUTTON", L"Start Capture",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         360, 70, 150, 30,
-        hwnd, (HMENU)106, GetModuleHandle(NULL), NULL
-    );
+        hwnd, (HMENU)106, GetModuleHandle(NULL), NULL);
 
     g_hStopCaptureButton = CreateWindowExW(
         0, L"BUTTON", L"Stop Capture",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON | WS_DISABLED,
         520, 70, 150, 30,
-        hwnd, (HMENU)107, GetModuleHandle(NULL), NULL
-    );
+        hwnd, (HMENU)107, GetModuleHandle(NULL), NULL);
 
     // Populate interface combo box
-    pcap_if_t* alldevs;
-    pcap_if_t* device;
+    pcap_if_t *alldevs;
+    pcap_if_t *device;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+    if (pcap_findalldevs(&alldevs, errbuf) == -1)
+    {
         MessageBoxW(hwnd, L"Error finding network interfaces", L"Error", MB_ICONERROR);
         return;
     }
 
-    for (device = alldevs; device != nullptr; device = device->next) {
+    for (device = alldevs; device != nullptr; device = device->next)
+    {
         wchar_t deviceName[256];
         size_t convertedChars = 0;
         mbstowcs_s(&convertedChars, deviceName, sizeof(deviceName) / sizeof(wchar_t),
-            device->description ? device->description : device->name, _TRUNCATE);
+                   device->description ? device->description : device->name, _TRUNCATE);
         SendMessage(g_hInterfaceCombo, CB_ADDSTRING, 0, (LPARAM)deviceName);
     }
 
@@ -281,7 +283,8 @@ void CreateControls(HWND hwnd) {
     ShowTab(0);
 }
 
-void ShowTab(int tabIndex) {
+void ShowTab(int tabIndex)
+{
     // Hide/show controls based on selected tab
     ShowWindow(g_hPacketCount, tabIndex == 0 ? SW_SHOW : SW_HIDE);
     ShowWindow(g_hRunButton, tabIndex == 0 ? SW_SHOW : SW_HIDE);
@@ -291,18 +294,21 @@ void ShowTab(int tabIndex) {
     ShowWindow(g_hStartCaptureButton, tabIndex == 2 ? SW_SHOW : SW_HIDE);
     ShowWindow(g_hStopCaptureButton, tabIndex == 2 ? SW_SHOW : SW_HIDE);
 
-    if (tabIndex == 1) {
+    if (tabIndex == 1)
+    {
         UpdateAlertsList();
     }
 }
 
-void RunSimulation() {
+void RunSimulation()
+{
     // Get packet count from edit control
     wchar_t buffer[16];
     GetWindowTextW(g_hPacketCount, buffer, sizeof(buffer) / sizeof(wchar_t));
     int packetCount = _wtoi(buffer);
 
-    if (packetCount <= 0) {
+    if (packetCount <= 0)
+    {
         packetCount = 100; // Default
     }
 
@@ -313,10 +319,12 @@ void RunSimulation() {
     g_alerts.clear();
     int alertCount = 0;
 
-    for (const auto& packet : packets) {
+    for (const auto &packet : packets)
+    {
         std::pair<bool, std::string> result = analyzer.analyze(packet);
 
-        if (result.first) {
+        if (result.first)
+        {
             alertCount++;
             AlertEntry alert;
             alert.type = result.second;
@@ -331,16 +339,16 @@ void RunSimulation() {
     // Update summary text
     wchar_t summary[256];
     swprintf(summary, sizeof(summary) / sizeof(wchar_t),
-        L"Simulation complete!\n- Generated packets: %d\n- Alerts detected: %d\n- Detection rate: %.1f%%",
-        (int)packets.size(), alertCount, ((float)alertCount / packets.size()) * 100.0f);
+             L"Simulation complete!\n- Generated packets: %d\n- Alerts detected: %d\n- Detection rate: %.1f%%",
+             (int)packets.size(), alertCount, ((float)alertCount / packets.size()) * 100.0f);
 
     SetWindowTextW(g_hSummaryText, summary);
 
     // Show message box with results
     wchar_t resultMsg[256];
     swprintf(resultMsg, sizeof(resultMsg) / sizeof(wchar_t),
-        L"Simulation complete!\nGenerated %d packets\nDetected %d alerts",
-        (int)packets.size(), alertCount);
+             L"Simulation complete!\nGenerated %d packets\nDetected %d alerts",
+             (int)packets.size(), alertCount);
 
     MessageBoxW(g_hWnd, resultMsg, L"Simulation Results", MB_OK | MB_ICONINFORMATION);
 
@@ -349,13 +357,15 @@ void RunSimulation() {
     ShowTab(1);
 }
 
-void UpdateAlertsList() {
+void UpdateAlertsList()
+{
     // Clear existing items
     ListView_DeleteAllItems(g_hAlertsList);
 
     // Add alerts to list view
-    for (size_t i = 0; i < g_alerts.size(); i++) {
-        const AlertEntry& alert = g_alerts[i];
+    for (size_t i = 0; i < g_alerts.size(); i++)
+    {
+        const AlertEntry &alert = g_alerts[i];
 
         LVITEM lvi;
         ZeroMemory(&lvi, sizeof(LVITEM));
@@ -397,25 +407,31 @@ void UpdateAlertsList() {
     }
 }
 
-void LiveCaptureThread(pcap_t* handle) {
+void LiveCaptureThread(pcap_t *handle)
+{
     TrafficAnalyzer analyzer;
-    struct pcap_pkthdr* header;
-    const u_char* packet;
+    struct pcap_pkthdr *header;
+    const u_char *packet;
 
-    while (g_captureRunning) {
+    while (g_captureRunning)
+    {
         int res = pcap_next_ex(handle, &header, &packet);
-        if (res == 0) continue; // Timeout
-        if (res < 0) break;     // Error
+        if (res == 0)
+            continue; // Timeout
+        if (res < 0)
+            break; // Error
 
         // Use the existing packet_handler logic but modified for the dashboard
-        const ether_header* eth_header = reinterpret_cast<const ether_header*>(packet);
-        if (ntohs(eth_header->ether_type) != 0x0800) continue;
+        const ether_header *eth_header = reinterpret_cast<const ether_header *>(packet);
+        if (ntohs(eth_header->ether_type) != 0x0800)
+            continue;
 
-        const ip_header* ip_hdr = reinterpret_cast<const ip_header*>(packet + sizeof(ether_header));
+        const ip_header *ip_hdr = reinterpret_cast<const ip_header *>(packet + sizeof(ether_header));
         int ip_header_len = (ip_hdr->ip_vhl & 0x0f) * 4;
-        if (ip_hdr->ip_p != 6) continue;
+        if (ip_hdr->ip_p != 6)
+            continue;
 
-        const tcp_header* tcp_hdr = reinterpret_cast<const tcp_header*>(packet + sizeof(ether_header) + ip_header_len);
+        const tcp_header *tcp_hdr = reinterpret_cast<const tcp_header *>(packet + sizeof(ether_header) + ip_header_len);
 
         Packet pkt;
         char src_ip[INET_ADDRSTRLEN];
@@ -433,16 +449,19 @@ void LiveCaptureThread(pcap_t* handle) {
         int payload_offset = sizeof(ether_header) + ip_header_len + ((tcp_hdr->th_offx2 >> 4) * 4);
         int payload_length = header->len - payload_offset;
 
-        if (payload_length > 0) {
+        if (payload_length > 0)
+        {
             int bytes_to_copy = (std::min)(payload_length, 100);
-            pkt.payload = std::string(reinterpret_cast<const char*>(packet + payload_offset), bytes_to_copy);
+            pkt.payload = std::string(reinterpret_cast<const char *>(packet + payload_offset), bytes_to_copy);
         }
-        else {
+        else
+        {
             pkt.payload = "[No Data]";
         }
 
         std::pair<bool, std::string> result = analyzer.analyze(pkt);
-        if (result.first) {
+        if (result.first)
+        {
             AlertEntry alert;
             alert.type = result.second;
             alert.source = pkt.src_ip;
@@ -461,50 +480,60 @@ void LiveCaptureThread(pcap_t* handle) {
     }
 }
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    switch (uMsg) {
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (uMsg)
+    {
     case WM_COMMAND:
-        switch (LOWORD(wParam)) {
+        switch (LOWORD(wParam))
+        {
         case 102: // Run simulation button
-            if (HIWORD(wParam) == BN_CLICKED) {
+            if (HIWORD(wParam) == BN_CLICKED)
+            {
                 RunSimulation();
             }
             break;
 
         case 106: // Start capture button
-            if (HIWORD(wParam) == BN_CLICKED) {
+            if (HIWORD(wParam) == BN_CLICKED)
+            {
                 int selectedInterface = SendMessage(g_hInterfaceCombo, CB_GETCURSEL, 0, 0);
-                if (selectedInterface == CB_ERR) {
+                if (selectedInterface == CB_ERR)
+                {
                     MessageBoxW(hwnd, L"Please select an interface", L"Error", MB_ICONERROR);
                     break;
                 }
 
-                pcap_if_t* alldevs;
-                pcap_if_t* device;
+                pcap_if_t *alldevs;
+                pcap_if_t *device;
                 char errbuf[PCAP_ERRBUF_SIZE];
 
-                if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+                if (pcap_findalldevs(&alldevs, errbuf) == -1)
+                {
                     MessageBoxW(hwnd, L"Error finding network interfaces", L"Error", MB_ICONERROR);
                     break;
                 }
 
                 // Find selected device
                 device = alldevs;
-                for (int i = 0; i < selectedInterface && device; i++) {
+                for (int i = 0; i < selectedInterface && device; i++)
+                {
                     device = device->next;
                 }
 
-                if (!device) {
+                if (!device)
+                {
                     pcap_freealldevs(alldevs);
                     MessageBoxW(hwnd, L"Selected interface not found", L"Error", MB_ICONERROR);
                     break;
                 }
 
                 // Open the device
-                pcap_t* handle = pcap_open_live(device->name, 65536, 1, 1000, errbuf);
+                pcap_t *handle = pcap_open_live(device->name, 65536, 1, 1000, errbuf);
                 pcap_freealldevs(alldevs);
 
-                if (!handle) {
+                if (!handle)
+                {
                     MessageBoxW(hwnd, L"Could not open interface", L"Error", MB_ICONERROR);
                     break;
                 }
@@ -512,7 +541,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 // Set up filter
                 struct bpf_program fcode;
                 if (pcap_compile(handle, &fcode, "tcp", 1, PCAP_NETMASK_UNKNOWN) < 0 ||
-                    pcap_setfilter(handle, &fcode) < 0) {
+                    pcap_setfilter(handle, &fcode) < 0)
+                {
                     pcap_close(handle);
                     MessageBoxW(hwnd, L"Could not set capture filter", L"Error", MB_ICONERROR);
                     break;
@@ -530,9 +560,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             break;
 
         case 107: // Stop capture button
-            if (HIWORD(wParam) == BN_CLICKED) {
+            if (HIWORD(wParam) == BN_CLICKED)
+            {
                 g_captureRunning = false;
-                if (g_captureThread.joinable()) {
+                if (g_captureThread.joinable())
+                {
                     g_captureThread.join();
                 }
 
@@ -550,9 +582,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         break;
 
     case WM_NOTIFY:
-        switch (((LPNMHDR)lParam)->idFrom) {
+        switch (((LPNMHDR)lParam)->idFrom)
+        {
         case 100: // Tab control
-            if (((LPNMHDR)lParam)->code == TCN_SELCHANGE) {
+            if (((LPNMHDR)lParam)->code == TCN_SELCHANGE)
+            {
                 int tabIndex = TabCtrl_GetCurSel(g_hTabControl);
                 ShowTab(tabIndex);
             }

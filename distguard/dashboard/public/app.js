@@ -15,8 +15,6 @@ const liveBtn = document.getElementById('liveBtn');
 
 let packetCount = 0;
 let currentMode = null;
-let isSimulatorRunning = false;
-let isLiveCaptureRunning = false;
 
 // Connection status handling
 function updateConnectionStatus(connected, message) {
@@ -49,18 +47,6 @@ socket.on('connect_error', (error) => {
   console.log('Socket connection error:', error);
   updateConnectionStatus(false, 'Connection Error');
   showError('Failed to connect to server. Retrying...');
-});
-
-socket.on('processStopped', (mode) => {
-  if (mode === 'simulator') {
-    isSimulatorRunning = false;
-    simulatorBtn.textContent = 'Start Simulator';
-    simulatorBtn.classList.remove('active');
-  } else if (mode === 'live') {
-    isLiveCaptureRunning = false;
-    liveBtn.textContent = 'Start Live Capture';
-    liveBtn.classList.remove('active');
-  }
 });
 
 // Parse packet information from log line
@@ -252,34 +238,14 @@ function clearLogs() {
   });
 }
 
-// Button click handlers
-simulatorBtn.addEventListener('click', () => {
-  if (!isSimulatorRunning) {
-    socket.emit('startSimulator');
-    isSimulatorRunning = true;
-    simulatorBtn.textContent = 'Stop Simulator';
-    simulatorBtn.classList.add('active');
-  } else {
-    socket.emit('stopSimulator');
-    isSimulatorRunning = false;
-    simulatorBtn.textContent = 'Start Simulator';
-    simulatorBtn.classList.remove('active');
-  }
-});
-
-liveBtn.addEventListener('click', () => {
-  if (!isLiveCaptureRunning) {
-    socket.emit('startLiveCapture');
-    isLiveCaptureRunning = true;
-    liveBtn.textContent = 'Stop Live Capture';
-    liveBtn.classList.add('active');
-  } else {
-    socket.emit('stopLiveCapture');
-    isLiveCaptureRunning = false;
-    liveBtn.textContent = 'Start Live Capture';
-    liveBtn.classList.remove('active');
-  }
-});
-
 // Initial connection status
 updateConnectionStatus(false, 'Connecting...'); 
+
+// Add event listeners for buttons
+document.getElementById('simulatorBtn').addEventListener('click', startSimulator);
+document.getElementById('liveBtn').addEventListener('click', startLiveCapture);
+
+// Add event listener for clear logs button if it exists
+const clearLogsBtn = document.getElementById('clearLogsBtn');
+if (clearLogsBtn) {
+    clearLogsBtn.addEventListener('click', clearLogs); }

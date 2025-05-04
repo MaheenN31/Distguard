@@ -3,7 +3,6 @@ const http = require('http');
 const socketIo = require('socket.io');
 const path = require('path');
 const { spawn } = require('child_process');
-const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -27,87 +26,115 @@ const MAX_LOGS = 1000;
 let currentMode = null;
 let analyzerProcess = null;
 
-// Store active processes
-let activeProcesses = {
-    liveCapture: null,
-    simulator: null
-};
+// Function to start TrafficAnalyzer in simulator mode
+function startSimulator() {
+  if (analyzerProcess) {
+    analyzerProcess.kill();
+  }
 
-// Function to stop a process
-function stopProcess(processType) {
-    if (activeProcesses[processType]) {
-        activeProcesses[processType].kill();
-        activeProcesses[processType] = null;
-        return true;
+  const analyzerPath = path.resolve(__dirname, '..', 'x64', 'Debug', 'TrafficAnalyzer.exe');
+  console.log('Starting simulator with path:', analyzerPath);
+  
+  analyzerProcess = spawn(analyzerPath, [], { 
+    shell: true,
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+
+  let menuChoiceSent = false;
+  let packetCountSent = false;
+
+  // Handle stdout to detect prompts and send responses
+  analyzerProcess.stdout.on('data', (data) => {
+    const output = data.toString();
+    console.log('TrafficAnalyzer stdout (raw):', output);
+    
+    // Send menu choice when menu appears
+    if (!menuChoiceSent && output.includes('Select a module')) {
+      console.log('Sending simulator choice...');
+      analyzerProcess.stdin.write('5\n');
+      menuChoiceSent = true;
     }
-    return false;
+    
+    // Send packet count when prompted
+    if (menuChoiceSent && !packetCountSent && output.includes('How many packets')) {
+      console.log('Sending packet count...');
+      analyzerProcess.stdin.write('100\n');
+      packetCountSent = true;
+    }
+
+    const lines = output.trim().split('\n');
+    lines.forEach(line => {
+      if (line.trim()) {
+        console.log('Processing line:', line);
+        addLogEntry(line);
+      }
+    });
+  });
+
+  analyzerProcess.stderr.on('data', (data) => {
+    console.error(`TrafficAnalyzer error: ${data}`);
+    addLogEntry(`[ERROR] ${data.toString().trim()}`);
+  });
+
+  analyzerProcess.on('error', (err) => {
+    console.error('Failed to start TrafficAnalyzer:', err);
+    addLogEntry(`[SYSTEM] Failed to start TrafficAnalyzer: ${err.message}`);
+  });
 }
 
-// Function to start TrafficAnalyzer
-function startTrafficAnalyzer(mode) {
-    // Kill existing process if any
-    stopProcess(mode);
+// Function to start TrafficAnalyzer in live capture mode
+function startLiveCapture() {
+  if (analyzerProcess) {
+    analyzerProcess.kill();
+  }
 
-    const analyzerPath = path.resolve(__dirname, '..', 'x64', 'Debug', 'TrafficAnalyzer.exe');
-    console.log(`Starting ${mode} with path: ${analyzerPath}`);
+  const analyzerPath = path.resolve(__dirname, '..', 'x64', 'Debug', 'TrafficAnalyzer.exe');
+  console.log('Starting live capture with path:', analyzerPath);
+  
+  analyzerProcess = spawn(analyzerPath, [], { 
+    shell: true,
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+
+  let menuChoiceSent = false;
+  let interfaceChoiceSent = false;
+
+  // Handle stdout to detect prompts and send responses
+  analyzerProcess.stdout.on('data', (data) => {
+    console.log('TrafficAnalyzer stdout:', data.toString());
+    const output = data.toString();
     
-    const analyzer = spawn(analyzerPath, [], { 
-        shell: true,
-        stdio: ['pipe', 'pipe', 'pipe']
+    // Send menu choice when menu appears
+    if (!menuChoiceSent && output.includes('Select a module')) {
+      console.log('Sending live capture choice...');
+      analyzerProcess.stdin.write('4\n');
+      menuChoiceSent = true;
+    }
+    
+    // Send interface choice when prompted
+    if (menuChoiceSent && !interfaceChoiceSent && output.includes('Select interface')) {
+      console.log('Sending interface choice...');
+      analyzerProcess.stdin.write('1\n'); // Choose first interface
+      interfaceChoiceSent = true;
+    }
+
+    const lines = output.trim().split('\n');
+    lines.forEach(line => {
+      if (line.trim()) {
+        addLogEntry(line);
+      }
     });
+  });
 
-    // Store the process
-    activeProcesses[mode] = analyzer;
+  analyzerProcess.stderr.on('data', (data) => {
+    console.error(`TrafficAnalyzer error: ${data}`);
+    addLogEntry(`[ERROR] ${data.toString().trim()}`);
+  });
 
-    let menuChoiceSent = false;
-    let packetCountSent = false;
-
-    // Handle stdout to detect prompts and send responses
-    analyzer.stdout.on('data', (data) => {
-        const output = data.toString();
-        console.log(`[TrafficAnalyzer ${mode}] ${output}`);
-        
-        // Send menu choice when menu appears
-        if (!menuChoiceSent && output.includes('Select a module')) {
-            console.log(`Sending ${mode} choice...`);
-            analyzer.stdin.write('5\n');
-            menuChoiceSent = true;
-        }
-        
-        // Send packet count when prompted
-        if (menuChoiceSent && !packetCountSent && output.includes('How many packets')) {
-            console.log(`Sending packet count...`);
-            analyzer.stdin.write('100\n');
-            packetCountSent = true;
-        }
-
-        const lines = output.trim().split('\n');
-        lines.forEach(line => {
-            if (line.trim()) {
-                console.log('Processing line:', line);
-                addLogEntry(line);
-            }
-        });
-    });
-
-    analyzer.stderr.on('data', (data) => {
-        console.error(`[TrafficAnalyzer ${mode} Error] ${data}`);
-        io.emit('error', data.toString());
-    });
-
-    analyzer.on('error', (err) => {
-        console.error(`Failed to start TrafficAnalyzer ${mode}:`, err);
-        addLogEntry(`[SYSTEM] Failed to start TrafficAnalyzer ${mode}: ${err.message}`);
-    });
-
-    analyzer.on('close', (code) => {
-        console.log(`[TrafficAnalyzer ${mode}] Process exited with code ${code}`);
-        activeProcesses[mode] = null;
-        io.emit('processStopped', mode);
-    });
-
-    // Send the mode selection
-    analyzer.stdin.write(mode === 'liveCapture' ? '4\n' : '5\n');
+  analyzerProcess.on('error', (err) => {
+    console.error('Failed to start TrafficAnalyzer:', err);
+    addLogEntry(`[SYSTEM] Failed to start TrafficAnalyzer: ${err.message}`);
+  });
 }
 
 // Function to add a log entry
@@ -218,13 +245,13 @@ app.post('/api/logs/clear', (req, res) => {
 // Mode switching endpoints
 app.post('/api/mode/simulator', (req, res) => {
   currentMode = 'simulator';
-  startTrafficAnalyzer('simulator');
+  startSimulator();
   res.status(200).send({ success: true });
 });
 
 app.post('/api/mode/live', (req, res) => {
   currentMode = 'live';
-  startTrafficAnalyzer('liveCapture');
+  startLiveCapture();
   res.status(200).send({ success: true });
 });
 
@@ -252,30 +279,6 @@ io.on('connection', (socket) => {
   socket.on('disconnect', (reason) => {
     console.log('Client disconnected:', socket.id, 'Reason:', reason);
   });
-
-  socket.on('startLiveCapture', () => {
-    console.log('Starting live capture...');
-    startTrafficAnalyzer('liveCapture');
-  });
-
-  socket.on('stopLiveCapture', () => {
-    console.log('Stopping live capture...');
-    if (stopProcess('liveCapture')) {
-      io.emit('log', '[Server] Live capture stopped');
-    }
-  });
-
-  socket.on('startSimulator', () => {
-    console.log('Starting traffic simulator...');
-    startTrafficAnalyzer('simulator');
-  });
-
-  socket.on('stopSimulator', () => {
-    console.log('Stopping traffic simulator...');
-    if (stopProcess('simulator')) {
-      io.emit('log', '[Server] Traffic simulator stopped');
-    }
-  });
 });
 
 // Error handling for the server
@@ -291,8 +294,9 @@ process.on('SIGINT', () => {
   process.exit();
 });
 
+// Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Dashboard server listening on http://localhost:${PORT}`);
-  console.log(`Send logs using POST to http://localhost:${PORT}/api/log`);
+  console.log(`Server is running on port ${PORT}`);
+  console.log(`Open http://localhost:${PORT} in your browser`);
 }); 

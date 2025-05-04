@@ -19,7 +19,8 @@ int main5()
     int count;
     std::cin >> count;
 
-    if (count <= 0) {
+    if (count <= 0)
+    {
         std::cout << "Invalid number of packets. Using default (100)." << std::endl;
         count = 100;
     }
@@ -35,14 +36,17 @@ int main5()
     TrafficAnalyzer analyzer;
     int malicious_count = 0;
 
-    std::cout << "\n====== Traffic Analysis Results ======\n" << std::endl;
+    std::cout << "\n====== Traffic Analysis Results ======\n"
+              << std::endl;
 
-    for (const auto& packet : packets) {
+    for (const auto &packet : packets)
+    {
         // Analyze each packet
         std::pair<bool, std::string> result = analyzer.analyze(packet);
 
         // If it's malicious, print details
-        if (result.first) {
+        if (result.first)
+        {
             malicious_count++;
             std::cout << "\n[ALERT] " << result.second << std::endl;
             std::cout << "  Source IP: " << packet.src_ip << std::endl;
@@ -66,7 +70,8 @@ int main5()
 
 int main()
 {
-    while (true) {
+    while (true)
+    {
         std::cout << "\nTrafficAnalyzer - Select a module to run:" << std::endl;
         std::cout << "1. Child Node (Network Traffic Analyzer)" << std::endl;
         std::cout << "2. Main Node (Traffic Distribution Server)" << std::endl;
